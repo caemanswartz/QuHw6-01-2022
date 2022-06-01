@@ -1,36 +1,43 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using QuHwJwtAspNetCoreWebApi.Models;
 namespace QuHwJwtAspNetCoreWebApi.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("user/[controller]")]
     [ApiController]
     public class AuthController:ControllerBase
     {
-        public static User user=new User();
         private readonly IConfiguration _config;
+        private readonly ApiDbContext _context;
 
-        public AuthController(IConfiguration config)
+        public AuthController(IConfiguration config,
+            ApiDbContext context)
         {
             _config=config;
+            _context=context;
         }
+#pragma warning disable CS1998
         [HttpPost("register")]
         public async Task<ActionResult<User>> Register(UserDto request)
         {
+            User user=new User();
             CreatePaswordHash(request.Password,
                 out byte[] passwordHash, out byte[] passwordSalt);
             user.Username=request.Username;
             user.PasswordHash=passwordHash;
             user.PasswordSalt=passwordSalt;
+            _context.Add(user);
+            await _context.SaveChangesAsync();
             return Ok(user);
         }
         [HttpPost("login")]
         public async Task<ActionResult<string>> Login(UserDto request)
         {
-            if(user.Username!=request.Username)
+            User? user=await _context.Users.FindAsync(request.Username);
+            if(user is null)
                 return BadRequest("User not found.");
             if(!VerifyPasswordHash(request.Password,
                 user.PasswordHash,user.PasswordSalt))
@@ -38,6 +45,7 @@ namespace QuHwJwtAspNetCoreWebApi.Controllers
             string token=CreateToken(user);
             return Ok(token);
         }
+#pragma warning restore CS1998
         private string CreateToken(User user)
         {
             List<Claim> claims=new List<Claim>
